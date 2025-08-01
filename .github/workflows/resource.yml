@@ -1,4 +1,4 @@
-name: Generate Catalog YAML into /arquivo/azure
+name: Generate Catalog YAML into /arquivo/<costcenter>
 
 on:
   pull_request:
@@ -19,12 +19,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Generate Catalog YAML
+      - name: Generate Catalog YAML and Move to Costcenter Folder
         run: |
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
-          OUTPUT_FILE="${REPO_NAME}.yml"
+          
+          # Extrair centro de custo do nome do repositório (terceira parte após split '-')
+          COSTCENTER=$(echo $REPO_NAME | awk -F'-' '{print $3}')
 
-          echo "Gerando Catalog YAML para o módulo: $REPO_NAME"
+          OUTPUT_FILE="${REPO_NAME}.yml"
+          DEST_DIR="arquivo/${COSTCENTER}"
+
+          echo "Repo: $REPO_NAME"
+          echo "Centro de Custo: $COSTCENTER"
+          echo "Arquivo final será movido para: $DEST_DIR/"
 
           # Coletar inputs e outputs do Terraform
           inputs=()
@@ -76,20 +83,20 @@ jobs:
 
           echo "Arquivo $OUTPUT_FILE gerado com sucesso!"
 
-          # Criar diretório /arquivo/azure se não existir
-          mkdir -p arquivo/azure
+          # Criar diretório /arquivo/<costcenter>/ se não existir
+          mkdir -p "$DEST_DIR"
 
           # Mover o arquivo gerado para o diretório destino
-          mv "$OUTPUT_FILE" arquivo/azure/
+          mv "$OUTPUT_FILE" "$DEST_DIR/"
 
       - name: Commit and Push to PR Branch
         run: |
           git fetch origin $GITHUB_HEAD_REF
           git checkout $GITHUB_HEAD_REF
 
-          if [[ `git status --porcelain arquivo/azure/` ]]; then
-            git add arquivo/azure/
-            git commit -m "chore: generated catalog yaml in /arquivo/azure/"
+          if [[ `git status --porcelain arquivo/` ]]; then
+            git add arquivo/
+            git commit -m "chore: generated catalog yaml in dynamic costcenter folder"
             git push origin $GITHUB_HEAD_REF
           else
             echo "No changes to commit."
