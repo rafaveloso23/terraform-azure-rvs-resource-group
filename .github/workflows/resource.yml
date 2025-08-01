@@ -21,7 +21,6 @@ jobs:
 
       - name: Generate Catalog YAML
         run: |
-          # Nome do repositório sem a org (Ex: swonelab/terraform-module -> terraform-module)
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
           OUTPUT_FILE="${REPO_NAME}.yml"
 
@@ -77,6 +76,11 @@ jobs:
 
           echo "Arquivo $OUTPUT_FILE gerado com sucesso."
 
+      - name: Checkout PR Branch Explicitly
+        run: |
+          git fetch origin $GITHUB_HEAD_REF
+          git checkout $GITHUB_HEAD_REF
+
       - name: Commit and Push Changes
         run: |
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
@@ -85,7 +89,8 @@ jobs:
           if [[ `git status --porcelain $OUTPUT_FILE` ]]; then
             git add "$OUTPUT_FILE"
             git commit -m "chore: generated catalog yaml for $REPO_NAME"
-            git push
+            git push origin $GITHUB_HEAD_REF
           else
             echo "No changes to commit."
           fi
+
