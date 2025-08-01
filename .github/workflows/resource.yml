@@ -1,0 +1,91 @@
+name: Generate Catalog YAML from Repo Name
+
+on:
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - 'resource.yml'
+
+jobs:
+  generate-catalog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Git User
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate Catalog YAML
+        run: |
+          # Nome do repositório sem a org (Ex: swonelab/terraform-module -> terraform-module)
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          OUTPUT_FILE="${REPO_NAME}.yml"
+
+          echo "Gerando Catalog YAML para o módulo: $REPO_NAME"
+
+          # Coletar inputs e outputs do Terraform
+          inputs=()
+          outputs=()
+
+          while IFS= read -r line; do
+              var_name=$(echo "$line" | sed -n 's/variable[[:space:]]*"\([^"]*\)".*/\1/p')
+              if [[ ! -z "$var_name" ]]; then
+                  inputs+=("$var_name")
+              fi
+          done < <(grep -rEh '^variable[[:space:]]+"[^"]+"' . --include="*.tf")
+
+          while IFS= read -r line; do
+              output_name=$(echo "$line" | sed -n 's/output[[:space:]]*"\([^"]*\)".*/\1/p')
+              if [[ ! -z "$output_name" ]]; then
+                  outputs+=("$output_name")
+              fi
+          done < <(grep -rEh '^output[[:space:]]+"[^"]+"' . --include="*.tf")
+
+          # Formatar inputs e outputs em YAML
+          inputs_yaml=""
+          for input in "${inputs[@]}"; do
+              inputs_yaml+="      - $input"$'\n'
+          done
+
+          outputs_yaml=""
+          for output in "${outputs[@]}"; do
+              outputs_yaml+="      - $output"$'\n'
+          done
+
+          # Preencher o template resource.yml
+          sed -e "s|\${MODULE_NAME}|$REPO_NAME|g" \
+              -e "s|\${MODULE_DESCRIPTION}|Módulo no-code para criação de \"$REPO_NAME\"|g" \
+              resource.yml > temp_resource.yml
+
+          # Inserir inputs e outputs no arquivo final
+          awk -v inputs="$inputs_yaml" -v outputs="$outputs_yaml" '
+          {
+              if ($0 ~ /\${INPUTS_PLACEHOLDER}/) {
+                  print inputs
+              } else if ($0 ~ /\${OUTPUTS_PLACEHOLDER}/) {
+                  print outputs
+              } else {
+                  print $0
+              }
+          }' temp_resource.yml > "$OUTPUT_FILE"
+
+          rm temp_resource.yml
+
+          echo "Arquivo $OUTPUT_FILE gerado com sucesso."
+
+      - name: Commit and Push Changes
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          OUTPUT_FILE="${REPO_NAME}.yml"
+
+          if [[ `git status --porcelain $OUTPUT_FILE` ]]; then
+            git add "$OUTPUT_FILE"
+            git commit -m "chore: generated catalog yaml for $REPO_NAME"
+            git push
+          else
+            echo "No changes to commit."
+          fi
