@@ -121,15 +121,16 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Create Pull Request on Target Repo
-        #if: steps.diffcheck.outputs.no_changes == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_GITHUB_TOKEN }}
           repository: rafaveloso23/repo-destino-rvs-modules
           commit-message: "chore: update catalog YAML for ${{ env.REPO_NAME }}"
-          branch: main
+          branch: auto/catalog-update-${{ env.REPO_NAME }}-${{ github.run_id }}
+          base: main
           title: "Catalog Update for ${{ env.REPO_NAME }}"
           body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
+
 
       - name: Show Terraform Variables in Summary (No Changes)
         #if: steps.diffcheck.outputs.no_changes == 'true'
