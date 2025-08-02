@@ -21,3 +21,12 @@ variable "teste" {
     costcenter  = "it"
   }
 }
+
+
+variable "tessste" {
+  type = map(string)
+  default = {
+    environment = "dev"
+    costcenter  = "it"
+  }
+}
