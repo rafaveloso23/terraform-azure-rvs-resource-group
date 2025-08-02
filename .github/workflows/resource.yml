@@ -116,9 +116,10 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
         run: |
           BRANCH_NAME="feature/${COSTCENTER}-${MODULE_NAME}-update-${RANDOM}"
-
           git checkout -b $BRANCH_NAME
           git add .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "fix: atualizando recurso ${MODULE_NAME} do centro de custo ${COSTCENTER}" || echo "No changes to commit"
           git push origin $BRANCH_NAME
 
