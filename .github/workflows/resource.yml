@@ -27,8 +27,6 @@ jobs:
           COSTCENTER=$(echo $REPO_NAME | awk -F'-' '{print $3}')
           OUTPUT_FILE="${REPO_NAME}.yml"
 
-          mkdir -p arquivo/$COSTCENTER
-
           # Coletar inputs e outputs do Terraform
           inputs=()
           outputs=()
@@ -72,7 +70,7 @@ jobs:
               } else {
                   print $0
               }
-          }' temp_resource.yml > "arquivo/$COSTCENTER/$OUTPUT_FILE"
+          }' temp_resource.yml > "$OUTPUT_FILE"
 
           rm temp_resource.yml
 
@@ -89,10 +87,9 @@ jobs:
 
       - name: Copy Catalog File to Target Repository Folder
         run: |
-          DEST_DIR="target-repo/bibliote/$COSTCENTER"
+          DEST_DIR="target-repo/biblioteca/$COSTCENTER"
           mkdir -p "$DEST_DIR"
-
-          cp "arquivo/$COSTCENTER/$OUTPUT_FILE" "$DEST_DIR/$OUTPUT_FILE"
+          cp "$OUTPUT_FILE" "$DEST_DIR/$OUTPUT_FILE"
 
       - name: Check for Changes in Target Repo
         id: diffcheck
@@ -105,35 +102,35 @@ jobs:
           fi
 
       - name: Commit and Push Changes to Target Repo
-        # if: steps.diffcheck.outputs.no_changes == 'false'
+        if: steps.diffcheck.outputs.no_changes == 'false'
         working-directory: target-repo
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          BRANCH_NAME="catalog-update-${REPO_NAME}-$(date +%s)"
-          git checkout -b $BRANCH_NAME
+          BRANCH_NAME="catalog-update-${REPO_NAME}"
+          git checkout -b $BRANCH_NAME || git checkout $BRANCH_NAME
 
           git add .
-          git commit -m "chore: update catalog YAML for $REPO_NAME"
+          git commit -m "chore: update catalog YAML for $REPO_NAME" || echo "No changes to commit."
           git push origin $BRANCH_NAME
 
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Create Pull Request on Target Repo
+        if: steps.diffcheck.outputs.no_changes == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_GITHUB_TOKEN }}
           repository: rafaveloso23/repo-destino-rvs-modules
           commit-message: "chore: update catalog YAML for ${{ env.REPO_NAME }}"
-          branch: auto/catalog-update-${{ env.REPO_NAME }}-${{ github.run_id }}
+          branch: ${{ env.branch_name }}
           base: main
           title: "Catalog Update for ${{ env.REPO_NAME }}"
           body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
 
-
       - name: Show Terraform Variables in Summary (No Changes)
-        #if: steps.diffcheck.outputs.no_changes == 'true'
+        if: steps.diffcheck.outputs.no_changes == 'true'
         run: |
           echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
           echo "${inputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
