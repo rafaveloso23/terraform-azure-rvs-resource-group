@@ -77,6 +77,9 @@ jobs:
           echo "COSTCENTER=$COSTCENTER" >> $GITHUB_ENV
           echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
           echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
+          echo "inputs=$(IFS=,; echo "${inputs[*]}")" >> $GITHUB_ENV
+          echo "outputs=$(IFS=,; echo "${outputs[*]}")" >> $GITHUB_ENV
+
 
       - name: Clone Target Repository
         uses: actions/checkout@v4
@@ -101,6 +104,10 @@ jobs:
             echo "no_changes=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Debug no_changes output
+        run: echo "NO_CHANGES=${{ steps.diffcheck.outputs.no_changes }}"
+
+
       - name: Commit and Push Changes to Target Repo
         if: steps.diffcheck.outputs.no_changes == 'false'
         working-directory: target-repo
@@ -117,22 +124,25 @@ jobs:
 
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
-      - name: Create Pull Request on Target Repo
+      - name: Create Pull Request on Target Repo (GH CLI)
         if: steps.diffcheck.outputs.no_changes == 'false'
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.PAT_GITHUB_TOKEN }}
-          repository: rafaveloso23/repo-destino-rvs-modules
-          commit-message: "chore: update catalog YAML for ${{ env.REPO_NAME }}"
-          branch: ${{ env.branch_name }}
-          base: main
-          title: "Catalog Update for ${{ env.REPO_NAME }}"
-          body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
+        working-directory: target-repo
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo rafaveloso23/repo-destino-rvs-modules \
+            --base main \
+            --head catalog-update-${REPO_NAME} \
+            --title "Catalog Update for ${REPO_NAME}" \
+            --body "Automated update for catalog YAML of module ${REPO_NAME}."
+
 
       - name: Show Terraform Variables in Summary (No Changes)
         if: steps.diffcheck.outputs.no_changes == 'true'
         run: |
           echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
-          echo "${inputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.inputs }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
           echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
-          echo "${outputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.outputs }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+
