@@ -1,0 +1,21 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: terraform-azure-rvs-resource-group
+  description: Módulo no-code para criação de "terraform-azure-rvs-resource-group"
+spec:
+  type: terraform-module
+  name: terraform-azure-rvs-resource-group
+  owner: squad-automacao
+  lifecycle: production
+  definition:
+    input:
+      - location
+      - client_secret
+      - tags
+      - teste
+
+    output:
+      - resource_group_name
+      - resource_group_location
+
