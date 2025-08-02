@@ -105,7 +105,7 @@ jobs:
           fi
 
       - name: Commit and Push Changes to Target Repo
-        if: steps.diffcheck.outputs.no_changes == 'false'
+        # if: steps.diffcheck.outputs.no_changes == 'false'
         working-directory: target-repo
         run: |
           git config --global user.name "github-actions[bot]"
@@ -121,7 +121,7 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Create Pull Request on Target Repo
-        if: steps.diffcheck.outputs.no_changes == 'false'
+        #if: steps.diffcheck.outputs.no_changes == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -132,7 +132,7 @@ jobs:
           body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
 
       - name: Show Terraform Variables in Summary (No Changes)
-        if: steps.diffcheck.outputs.no_changes == 'true'
+        #if: steps.diffcheck.outputs.no_changes == 'true'
         run: |
           echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
           echo "${inputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
