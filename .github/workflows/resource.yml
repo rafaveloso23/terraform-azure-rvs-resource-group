@@ -1,4 +1,7 @@
 name: Generate Catalog YAML and Open PR if Changed
+concurrency:
+  group: catalog-${{ github.repository }}
+  cancel-in-progress: false
 
 on:
   push:
