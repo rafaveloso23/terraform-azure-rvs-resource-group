@@ -10,11 +10,10 @@ on:
       - 'resource.yml'
 
 jobs:
-  generate-catalog:
+  publish-catalog:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout Source Repository
         uses: actions/checkout@v4
 
       - name: Setup Git User
@@ -27,9 +26,8 @@ jobs:
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
           COSTCENTER=$(echo $REPO_NAME | awk -F'-' '{print $3}')
           OUTPUT_FILE="${REPO_NAME}.yml"
-          DEST_DIR="arquivo/${COSTCENTER}"
 
-          mkdir -p "$DEST_DIR"
+          mkdir -p arquivo/$COSTCENTER
 
           # Coletar inputs e outputs do Terraform
           inputs=()
@@ -74,39 +72,69 @@ jobs:
               } else {
                   print $0
               }
-          }' temp_resource.yml > "$DEST_DIR/$OUTPUT_FILE"
+          }' temp_resource.yml > "arquivo/$COSTCENTER/$OUTPUT_FILE"
 
           rm temp_resource.yml
 
-          echo "Arquivo gerado em: $DEST_DIR/$OUTPUT_FILE"
+          echo "COSTCENTER=$COSTCENTER" >> $GITHUB_ENV
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+          echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
 
-      - name: Check for Changes in Catalog File
-        id: diffcheck
+      - name: Clone Target Repository
+        uses: actions/checkout@v4
+        with:
+          repository: rafaveloso23/repo-destino-rvs-modules
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: target-repo
+
+      - name: Copy Catalog File to Target Repository Folder
         run: |
-          if git diff --quiet --exit-code arquivo/; then
-            echo "no_changes=true" >> $GITHUB_ENV
+          DEST_DIR="target-repo/bibliote/$COSTCENTER"
+          mkdir -p "$DEST_DIR"
+
+          cp "arquivo/$COSTCENTER/$OUTPUT_FILE" "$DEST_DIR/$OUTPUT_FILE"
+
+      - name: Check for Changes in Target Repo
+        id: diffcheck
+        working-directory: target-repo
+        run: |
+          if git diff --quiet --exit-code .; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            echo "no_changes=false" >> $GITHUB_ENV
+            echo "no_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Branch and Commit Changes
-        if: env.no_changes == 'false'
+      - name: Commit and Push Changes to Target Repo
+        if: steps.diffcheck.outputs.no_changes == 'false'
+        working-directory: target-repo
         run: |
-          BRANCH_NAME="auto/catalog-update-$(date +%s)"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+          BRANCH_NAME="catalog-update-${REPO_NAME}-$(date +%s)"
           git checkout -b $BRANCH_NAME
-          git add arquivo/
+
+          git add .
           git commit -m "chore: update catalog YAML for $REPO_NAME"
           git push origin $BRANCH_NAME
 
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
-      - name: Create Pull Request
-        if: env.no_changes == 'false'
+      - name: Create Pull Request on Target Repo
+        if: steps.diffcheck.outputs.no_changes == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          repository: rafaveloso23/repo-destino-rvs-modules
           commit-message: "chore: update catalog YAML for ${{ env.REPO_NAME }}"
           branch: ${{ env.branch_name }}
           title: "Catalog Update for ${{ env.REPO_NAME }}"
-          body: "This PR updates the catalog YAML definition based on the latest Terraform inputs/outputs."
+          body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
+
+      - name: Show Terraform Variables in Summary (No Changes)
+        if: steps.diffcheck.outputs.no_changes == 'true'
+        run: |
+          echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
+          echo "${inputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "${outputs[@]}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY

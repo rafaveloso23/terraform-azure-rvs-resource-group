@@ -14,3 +14,10 @@ variable "tags" {
     costcenter  = "it"
   }
 }
+variable "teste" {
+  type = map(string)
+  default = {
+    environment = "dev"
+    costcenter  = "it"
+  }
+}
