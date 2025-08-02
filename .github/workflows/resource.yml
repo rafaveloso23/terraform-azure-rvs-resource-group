@@ -124,10 +124,10 @@ jobs:
         #if: steps.diffcheck.outputs.no_changes == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.TARGET_REPO_PAT }}
           repository: rafaveloso23/repo-destino-rvs-modules
           commit-message: "chore: update catalog YAML for ${{ env.REPO_NAME }}"
-          branch: ${{ env.branch_name }}
+          branch: main
           title: "Catalog Update for ${{ env.REPO_NAME }}"
           body: "Automated update for catalog YAML of module ${{ env.REPO_NAME }}."
 
