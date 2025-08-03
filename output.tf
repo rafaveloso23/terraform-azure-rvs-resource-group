@@ -9,10 +9,10 @@ output "resource_group_name_rvsfa" {
   value = azurerm_resource_group.rg.name
 }
 
-output "resource_group_location_tes02" {
+output "resource_group_location_tes02rvvs" {
   value = azurerm_resource_group.rg.location
 }
 
-output "resource_group_location_tes03" {
+output "resource_group_location_tes0rsv3" {
   value = azurerm_resource_group.rg.location
 }

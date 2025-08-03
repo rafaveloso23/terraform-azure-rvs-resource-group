@@ -14,7 +14,7 @@ variable "tags" {
     costcenter  = "it"
   }
 }
-variable "teste" {
+variable "testervs" {
   type = map(string)
   default = {
     environment = "dev"
@@ -23,7 +23,7 @@ variable "teste" {
 }
 
 
-variable "tessste" {
+variable "tessstervs" {
   type = map(string)
   default = {
     environment = "dev"
