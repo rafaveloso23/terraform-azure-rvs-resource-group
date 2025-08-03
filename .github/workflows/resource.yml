@@ -97,7 +97,7 @@ jobs:
 
       - name: Copy Catalog File to Target Repository
         run: |
-          DEST_DIR="target-repo/catalog/${COSTCENTER}/${MODULE_NAME}"
+          DEST_DIR="target-repo/biblioteca/${COSTCENTER}/${MODULE_NAME}"
           mkdir -p "$DEST_DIR"
           cp "biblioteca/$COSTCENTER/$OUTPUT_FILE" "$DEST_DIR/${OUTPUT_FILE}"
 
