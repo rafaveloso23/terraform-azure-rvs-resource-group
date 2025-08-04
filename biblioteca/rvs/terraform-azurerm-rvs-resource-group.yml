@@ -1,0 +1,30 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: terraform-azurerm-rvs-resource-group
+  description: Módulo no-code para criação de "terraform-azurerm-rvs-resource-group"
+spec:
+  type: terraform-module
+  name: terraform-azurerm-rvs-resource-group
+  owner: squad-automacao
+  lifecycle: production
+  definition:
+    input:
+      - azurerm_resource_group_name
+      - tags
+      - azurerm_resource_group_location
+      - azurerm_key_vault_name
+      - azurerm_key_vault_access_policy_object_id
+      - azurerm_key_vault_access_policy_name
+
+    output:
+      - resource_group_name
+      - resource_group_location
+      - resource_group_name_rvsfa
+      - resource_group_location_tes02rvvs
+      - resource_group_location_tes0rsv3
+
+    dependsOn:
+      - resource: terraform-azurerm-srv-key-vault
+      - resource: terraform-azurerm-tdr-key-vault-access-policy
+

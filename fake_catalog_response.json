@@ -1,0 +1,27 @@
+ [
+  {
+    "metadata": {
+      "name": "terraform-azurerm-srv-key-vault"
+    }
+  },
+  {
+    "metadata": {
+      "name": "terraform-azurerm-rvs-storage-account"
+    }
+  },
+  {
+    "metadata": {
+      "name": "terraform-azurerm-rvs-redis-cache"
+    }
+  },
+  {
+    "metadata": {
+      "name": "terraform-azurerm-rvs-resource-group"
+    }
+  },
+  {
+    "metadata": {
+      "name": "terraform-azurerm-tdr-key-vault-access-policy"
+    }
+  }
+]
