@@ -13,3 +13,5 @@ spec:
 ${INPUTS_PLACEHOLDER}
     output:
 ${OUTPUTS_PLACEHOLDER}
+    dependsOn:
+${DEPENDS_ON_PLACEHOLDER}

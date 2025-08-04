@@ -1,10 +1,6 @@
-variable "location" {
+variable "azurerm_resource_group_name" {
   type    = string
-  default = "East US"
-}
-
-variable "client_secret" {
-  type    = string
+  default = "rgtest4te45"
 }
 
 variable "tags" {
@@ -14,19 +10,14 @@ variable "tags" {
     costcenter  = "it"
   }
 }
-variable "testervs" {
-  type = map(string)
-  default = {
-    environment = "dev"
-    costcenter  = "it"
-  }
+
+variable "azurerm_resource_group_location" {
+  type    = string
+  default = "East US"
 }
 
 
-variable "tessstervs" {
-  type = map(string)
-  default = {
-    environment = "dev"
-    costcenter  = "it"
-  }
+variable "azurerm_key_vault_name" {
+  type    = string
+  default = "myKeyVault"
 }
