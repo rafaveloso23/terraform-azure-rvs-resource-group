@@ -37,7 +37,7 @@ variable "azurerm_storage_account_name" {
   default = "mystorageaccount"
 }
 
-# variable "azurerm_redis_cache_name" {
-#   type    = string
-#   default = "myredis"
-# }
+variable "azurerm_redis_cache_name" {
+  type    = string
+  default = "myredis"
+}
