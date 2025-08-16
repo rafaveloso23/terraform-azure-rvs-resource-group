@@ -1,175 +1,175 @@
-name: Generate Catalog YAML and Open PR if Changed
-concurrency:
-  group: catalog-${{ github.repository }}
-  cancel-in-progress: false
+# name: Generate Catalog YAML and Open PR if Changed
+# concurrency:
+#   group: catalog-${{ github.repository }}
+#   cancel-in-progress: false
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    paths:
-      - '**/*.tf'
-      - 'resource.yml'
+# on:
+#   push:
+#     branches:
+#       - main
+#   pull_request:
+#     paths:
+#       - '**/*.tf'
+#       - 'resource.yml'
 
-jobs:
-  publish-catalog:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Source Repository
-        uses: actions/checkout@v4
+# jobs:
+#   publish-catalog:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Source Repository
+#         uses: actions/checkout@v4
 
-      - name: Setup Git User
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+#       - name: Setup Git User
+#         run: |
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Generate Catalog YAML (Source Repo)
-        run: |
-            REPO_NAME=$(basename $GITHUB_REPOSITORY)
-            COSTCENTER=$(echo $REPO_NAME | awk -F'-' '{print $3}')
-            MODULE_NAME=$(echo $REPO_NAME | cut -d'-' -f4-)
+#       - name: Generate Catalog YAML (Source Repo)
+#         run: |
+#             REPO_NAME=$(basename $GITHUB_REPOSITORY)
+#             COSTCENTER=$(echo $REPO_NAME | awk -F'-' '{print $3}')
+#             MODULE_NAME=$(echo $REPO_NAME | cut -d'-' -f4-)
 
-            OUTPUT_FILE="${REPO_NAME}.yml"
+#             OUTPUT_FILE="${REPO_NAME}.yml"
 
-            mkdir -p biblioteca/$COSTCENTER
+#             mkdir -p biblioteca/$COSTCENTER
 
-            # Coletar inputs e outputs do Terraform
-            inputs=()
-            outputs=()
+#             # Coletar inputs e outputs do Terraform
+#             inputs=()
+#             outputs=()
 
-            while IFS= read -r line; do
-                var_name=$(echo "$line" | sed -n 's/variable[[:space:]]*"\([^"]*\)".*/\1/p')
-                if [[ ! -z "$var_name" ]]; then
-                    inputs+=("$var_name")
-                fi
-            done < <(grep -rEh '^variable[[:space:]]+"[^"]+"' . --include="*.tf")
+#             while IFS= read -r line; do
+#                 var_name=$(echo "$line" | sed -n 's/variable[[:space:]]*"\([^"]*\)".*/\1/p')
+#                 if [[ ! -z "$var_name" ]]; then
+#                     inputs+=("$var_name")
+#                 fi
+#             done < <(grep -rEh '^variable[[:space:]]+"[^"]+"' . --include="*.tf")
 
-            while IFS= read -r line; do
-                output_name=$(echo "$line" | sed -n 's/output[[:space:]]*"\([^"]*\)".*/\1/p')
-                if [[ ! -z "$output_name" ]]; then
-                    outputs+=("$output_name")
-                fi
-            done < <(grep -rEh '^output[[:space:]]+"[^"]+"' . --include="*.tf")
+#             while IFS= read -r line; do
+#                 output_name=$(echo "$line" | sed -n 's/output[[:space:]]*"\([^"]*\)".*/\1/p')
+#                 if [[ ! -z "$output_name" ]]; then
+#                     outputs+=("$output_name")
+#                 fi
+#             done < <(grep -rEh '^output[[:space:]]+"[^"]+"' . --include="*.tf")
 
-            # ========================
-            # BUSCAR DEPENDÊNCIAS (API)
-            # ========================
+#             # ========================
+#             # BUSCAR DEPENDÊNCIAS (API)
+#             # ========================
 
-            # Realizar chamada API para pegar os recursos cadastrados no Backstage
-            response=$(curl -s -H "Authorization: Bearer ${{ secrets.CATALOG_API_TOKEN }}" "endpoints")
+#             # Realizar chamada API para pegar os recursos cadastrados no Backstage
+#             response=$(curl -s -H "Authorization: Bearer ${{ secrets.CATALOG_API_TOKEN }}" "endpoints")
 
-            # Extrair todos os nomes dos recursos (metadata.name)
-            resource_names=($(echo "$response" | jq -r '.[].metadata.name'))
+#             # Extrair todos os nomes dos recursos (metadata.name)
+#             resource_names=($(echo "$response" | jq -r '.[].metadata.name'))
 
-            # Montar lista de depends_on
-            depends_on=()
+#             # Montar lista de depends_on
+#             depends_on=()
 
-            for var in "${inputs[@]}"; do
-                var_normalized=$(echo "$var" | tr '_' '-' | tr '[:upper:]' '[:lower:]')
-                for resource in "${resource_names[@]}"; do
-                    # Se o nome da variável bater com parte do nome do recurso E não for o próprio módulo atual
-                    if [[ "$resource" != "$REPO_NAME" ]] && [[ "$resource" == *"$var_normalized"* ]]; then
-                        depends_on+=("$resource")
-                    fi
-                done
-            done
+#             for var in "${inputs[@]}"; do
+#                 var_normalized=$(echo "$var" | tr '_' '-' | tr '[:upper:]' '[:lower:]')
+#                 for resource in "${resource_names[@]}"; do
+#                     # Se o nome da variável bater com parte do nome do recurso E não for o próprio módulo atual
+#                     if [[ "$resource" != "$REPO_NAME" ]] && [[ "$resource" == *"$var_normalized"* ]]; then
+#                         depends_on+=("$resource")
+#                     fi
+#                 done
+#             done
 
-            # Formatar depends_on em YAML
-            depends_on_yaml=""
-            for dep in "${depends_on[@]}"; do
-                depends_on_yaml+="      - $dep"$'\n'
-            done
+#             # Formatar depends_on em YAML
+#             depends_on_yaml=""
+#             for dep in "${depends_on[@]}"; do
+#                 depends_on_yaml+="      - $dep"$'\n'
+#             done
 
-            # Formatar inputs/outputs em YAML
-            inputs_yaml=""
-            for input in "${inputs[@]}"; do
-                inputs_yaml+="      - $input"$'\n'
-            done
+#             # Formatar inputs/outputs em YAML
+#             inputs_yaml=""
+#             for input in "${inputs[@]}"; do
+#                 inputs_yaml+="      - $input"$'\n'
+#             done
 
-            outputs_yaml=""
-            for output in "${outputs[@]}"; do
-                outputs_yaml+="      - $output"$'\n'
-            done
+#             outputs_yaml=""
+#             for output in "${outputs[@]}"; do
+#                 outputs_yaml+="      - $output"$'\n'
+#             done
 
-            # Preencher o template resource.yml
-            sed -e "s|\${MODULE_NAME}|$REPO_NAME|g" \
-                -e "s|\${MODULE_DESCRIPTION}|Módulo no-code para criação de \"$REPO_NAME\"|g" \
-                resource.yml > temp_resource.yml
+#             # Preencher o template resource.yml
+#             sed -e "s|\${MODULE_NAME}|$REPO_NAME|g" \
+#                 -e "s|\${MODULE_DESCRIPTION}|Módulo no-code para criação de \"$REPO_NAME\"|g" \
+#                 resource.yml > temp_resource.yml
 
-            awk -v inputs="$inputs_yaml" -v outputs="$outputs_yaml" -v depends="$depends_on_yaml" '
-            {
-                if ($0 ~ /\${INPUTS_PLACEHOLDER}/) {
-                    print inputs
-                } else if ($0 ~ /\${OUTPUTS_PLACEHOLDER}/) {
-                    print outputs
-                } else if ($0 ~ /\${DEPENDS_ON_PLACEHOLDER}/) {
-                    print depends
-                } else {
-                    print $0
-                }
-            }' temp_resource.yml > "biblioteca/$COSTCENTER/$OUTPUT_FILE"
+#             awk -v inputs="$inputs_yaml" -v outputs="$outputs_yaml" -v depends="$depends_on_yaml" '
+#             {
+#                 if ($0 ~ /\${INPUTS_PLACEHOLDER}/) {
+#                     print inputs
+#                 } else if ($0 ~ /\${OUTPUTS_PLACEHOLDER}/) {
+#                     print outputs
+#                 } else if ($0 ~ /\${DEPENDS_ON_PLACEHOLDER}/) {
+#                     print depends
+#                 } else {
+#                     print $0
+#                 }
+#             }' temp_resource.yml > "biblioteca/$COSTCENTER/$OUTPUT_FILE"
 
-            rm temp_resource.yml
+#             rm temp_resource.yml
 
-            # Salvando outputs para o próximo step
-            echo "inputs=${inputs[*]}" >> $GITHUB_ENV
-            echo "outputs=${outputs[*]}" >> $GITHUB_ENV
-            echo "depends_on=${depends_on[*]}" >> $GITHUB_ENV
-            echo "COSTCENTER=$COSTCENTER" >> $GITHUB_ENV
-            echo "MODULE_NAME=$MODULE_NAME" >> $GITHUB_ENV
-            echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
+#             # Salvando outputs para o próximo step
+#             echo "inputs=${inputs[*]}" >> $GITHUB_ENV
+#             echo "outputs=${outputs[*]}" >> $GITHUB_ENV
+#             echo "depends_on=${depends_on[*]}" >> $GITHUB_ENV
+#             echo "COSTCENTER=$COSTCENTER" >> $GITHUB_ENV
+#             echo "MODULE_NAME=$MODULE_NAME" >> $GITHUB_ENV
+#             echo "OUTPUT_FILE=$OUTPUT_FILE" >> $GITHUB_ENV
 
 
-      - name: Checkout Target Repository
-        uses: actions/checkout@v4
-        with:
-          repository: rafaveloso23/repo-destino-rvs-modules
-          token: ${{ secrets.PAT_GITHUB_TOKEN }}
-          path: target-repo
+#       - name: Checkout Target Repository
+#         uses: actions/checkout@v4
+#         with:
+#           repository: rafaveloso23/repo-destino-rvs-modules
+#           token: ${{ secrets.PAT_GITHUB_TOKEN }}
+#           path: target-repo
 
-      - name: Copy Catalog File to Target Repository
-        run: |
-          DEST_DIR="target-repo/biblioteca/${COSTCENTER}"
-          mkdir -p "$DEST_DIR"
-          cp "biblioteca/$COSTCENTER/$OUTPUT_FILE" "$DEST_DIR/${OUTPUT_FILE}"
+#       - name: Copy Catalog File to Target Repository
+#         run: |
+#           DEST_DIR="target-repo/biblioteca/${COSTCENTER}"
+#           mkdir -p "$DEST_DIR"
+#           cp "biblioteca/$COSTCENTER/$OUTPUT_FILE" "$DEST_DIR/${OUTPUT_FILE}"
 
-      - name: Check for Changes in Target Repo
-        id: diffcheck
-        working-directory: target-repo
-        run: |
-          git add .
-          if git diff --cached --quiet --exit-code .; then
-            echo "no_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "no_changes=false" >> $GITHUB_OUTPUT
-          fi
+#       - name: Check for Changes in Target Repo
+#         id: diffcheck
+#         working-directory: target-repo
+#         run: |
+#           git add .
+#           if git diff --cached --quiet --exit-code .; then
+#             echo "no_changes=true" >> $GITHUB_OUTPUT
+#           else
+#             echo "no_changes=false" >> $GITHUB_OUTPUT
+#           fi
 
-      - name: Commit and Open PR in Target Repo
-        if: steps.diffcheck.outputs.no_changes == 'false'
-        working-directory: target-repo
-        env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-        run: |
-          BRANCH_NAME="feature/${COSTCENTER}-${MODULE_NAME}-update-${RANDOM}"
-          git checkout -b $BRANCH_NAME
-          git add .
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix: atualizando recurso ${MODULE_NAME} do centro de custo ${COSTCENTER}" || echo "No changes to commit"
-          git push origin $BRANCH_NAME
+#       - name: Commit and Open PR in Target Repo
+#         if: steps.diffcheck.outputs.no_changes == 'false'
+#         working-directory: target-repo
+#         env:
+#           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+#         run: |
+#           BRANCH_NAME="feature/${COSTCENTER}-${MODULE_NAME}-update-${RANDOM}"
+#           git checkout -b $BRANCH_NAME
+#           git add .
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git commit -m "fix: atualizando recurso ${MODULE_NAME} do centro de custo ${COSTCENTER}" || echo "No changes to commit"
+#           git push origin $BRANCH_NAME
 
-          gh pr create \
-            --repo rafaveloso23/repo-destino-rvs-modules \
-            --base main \
-            --head $BRANCH_NAME \
-            --title "Update ${MODULE_NAME} Catalog" \
-            --body "Automated Catalog update for ${MODULE_NAME}"
+#           gh pr create \
+#             --repo rafaveloso23/repo-destino-rvs-modules \
+#             --base main \
+#             --head $BRANCH_NAME \
+#             --title "Update ${MODULE_NAME} Catalog" \
+#             --body "Automated Catalog update for ${MODULE_NAME}"
 
-      - name: Show Terraform Variables in Summary (No Changes)
-        if: steps.diffcheck.outputs.no_changes == 'true'
-        run: |
-          echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
-          echo "${{ env.inputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
-          echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
-          echo "${{ env.outputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+#       - name: Show Terraform Variables in Summary (No Changes)
+#         if: steps.diffcheck.outputs.no_changes == 'true'
+#         run: |
+#           echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
+#           echo "${{ env.inputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+#           echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+#           echo "${{ env.outputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY

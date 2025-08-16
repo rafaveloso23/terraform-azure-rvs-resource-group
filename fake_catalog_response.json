@@ -23,5 +23,10 @@
     "metadata": {
       "name": "terraform-azurerm-tdr-key-vault-access-policy"
     }
+  },
+  {
+    "metadata": {
+      "name": "terraform-azurerm-tdr-redis-cache"
+    }
   }
 ]

@@ -24,10 +24,20 @@ variable "azurerm_key_vault_name" {
 
 variable "azurerm_key_vault_access_policy_object_id" {
   type    = string
-  default = "00000000-0000-0000-0000-000000000000"
+  default = "00000000-0000-0000-000j0-000000000000"
 }
 
 variable "azurerm_key_vault_access_policy_name" {
   type    = string
   default = "00000000-0000-0000-0000-000000000000"
+}
+
+variable "azurerm_storage_account_name" {
+  type    = string
+  default = "mystorageaccount"
+}
+
+variable "azurerm_redis_cache_name" {
+  type    = string
+  default = "myredis"
 }
