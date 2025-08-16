@@ -4,13 +4,12 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     paths:
       - '**/*.tf'
       - 'resource.yml'
-      - 'generate_catalog.sh'
+      - '.github/workflows/scripts/generate_catalog.sh'
+
 
 jobs:
   publish-catalog:
@@ -27,11 +26,11 @@ jobs:
       # (opcional) se o script já está versionado, remova este passo
       - name: Ensure generator script exists
         run: |
-          if [[ ! -f "./generate_catalog.sh" ]]; then
+          if [[ ! -f ".github/workflows/scripts/generate_catalog.sh" ]]; then
             echo "ERRO: generate_catalog.sh não encontrado no repo." >&2
             exit 1
           fi
-          chmod +x ./generate_catalog.sh
+          chmod +x .github/workflows/scripts/generate_catalog.sh
 
       - name: Write fake catalog JSON (test only)
         run: |
@@ -54,7 +53,7 @@ jobs:
           OUTPUT_PREFIX_FILTER: "^(resource_group_name|resource_group_location)$"
           DEBUG_MATCH: "0"
         run: |
-          ./generate_catalog.sh
+          ./.github/workflows/scripts/generate_catalog.sh
 
       - name: Checkout Target Repository
         uses: actions/checkout@v4
