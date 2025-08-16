@@ -8,7 +8,7 @@ on:
     paths:
       - '**/*.tf'
       - 'resource.yml'
-      - '.github/workflows/scripts/generate_catalog.sh'
+      - '.github/workflows/scripts/script.sh.sh'
 
 jobs:
   publish-catalog:
@@ -24,25 +24,27 @@ jobs:
 
       - name: Ensure generator script exists
         run: |
-          if [[ ! -f ".github/workflows/scripts/generate_catalog.sh" ]]; then
-            echo "ERRO: generate_catalog.sh não encontrado no repo." >&2
+          if [[ ! -f ".github/workflows/scripts/script.sh.sh" ]]; then
+            echo "ERRO: script.sh.sh não encontrado no repo." >&2
             exit 1
           fi
-          chmod +x .github/workflows/scripts/generate_catalog.sh
+          chmod +x .github/workflows/scripts/script.sh.sh
+
+      - name: Fetch catalog from API (PowerShell)
+        shell: pwsh
+        env:
+          CATALOG_URL: ${{ secrets.CATALOG_URL }}
+          CATALOG_API_TOKEN: ${{ secrets.CATALOG_API_TOKEN }}
+        run: |
+          $resp = Invoke-RestMethod -Uri $env:CATALOG_URL -Headers @{Authorization="Bearer $env:CATALOG_API_TOKEN"} -Method GET
+          $resp | ConvertTo-Json -Depth 32 | Set-Content -Path catalog_response.json -Encoding utf8
 
       - name: Generate Catalog YAML (Source Repo)
         env:
-          # ➜ API do catálogo (obrigatório)
-          CATALOG_URL: ${{ secrets.CATALOG_URL }}
-          # ➜ Token opcional para Authorization: Bearer <token>
-          CATALOG_API_TOKEN: ${{ secrets.CATALOG_API_TOKEN }}
-          # (opcionais) Timeout e TLS
-          CATALOG_TIMEOUT: "25"
-          CATALOG_INSECURE: "0"
-          # Debug do matching (0/1)
-          DEBUG_MATCH: "0"
+          CATALOG_FILE: "catalog_response.json"
         run: |
-          ./.github/workflows/scripts/generate_catalog.sh
+          ./.github/workflows/scripts/script.sh.sh
+
 
       - name: Checkout Target Repository
         uses: actions/checkout@v4
