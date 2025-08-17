@@ -1,0 +1,157 @@
+name: Generate Catalog YAML and Open PR if Changed
+concurrency:
+  group: catalog-${{ github.repository }}
+  cancel-in-progress: false
+
+on:
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - 'resource.yml'
+      - '.github/workflows/scripts/script.sh'
+
+jobs:
+  publish-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Git User
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Ensure generator script exists
+        run: |
+          if [[ ! -f ".github/workflows/scripts/script.sh" ]]; then
+            echo "ERRO: script.sh não encontrado no repo." >&2
+            exit 1
+          fi
+          chmod +x .github/workflows/scripts/script.sh
+
+      # 1) Tenta buscar catálogo via API (Bash) e grava em catalog_response.json
+      - name: Fetch catalog from API (Bash)
+        id: fetch_catalog
+        shell: bash
+        continue-on-error: true
+        env:
+          CATALOG_URL: ${{ secrets.CATALOG_URL }}             # obrigatório
+          CATALOG_API_TOKEN: ${{ secrets.CATALOG_API_TOKEN }} # opcional (Bearer)
+          CATALOG_TIMEOUT: "25"
+          CATALOG_INSECURE: "1"                               # 1 = ignora TLS (use só se precisar)
+          CATALOG_DEST: "catalog_response.json"
+        run: |
+          set -euo pipefail
+          if [[ -z "${CATALOG_URL:-}" ]]; then
+            echo "CATALOG_URL não definido." >&2
+            exit 1
+          fi
+
+          CURL_OPTS=(-sS -f --max-time "${CATALOG_TIMEOUT}" -H "Accept: application/json")
+          [[ -n "${CATALOG_API_TOKEN:-}" ]] && CURL_OPTS+=(-H "Authorization: Bearer ${CATALOG_API_TOKEN}")
+          [[ "${CATALOG_INSECURE:-0}" == "1" ]] && CURL_OPTS+=(-k)
+
+          tmpfile="$(mktemp)"
+          if curl "${CURL_OPTS[@]}" "${CATALOG_URL}" > "${tmpfile}"; then
+            if jq -e '.[].metadata.name' "${tmpfile}" >/dev/null 2>&1; then
+              mv "${tmpfile}" "${CATALOG_DEST}"
+              echo "CATALOG_FILE=${CATALOG_DEST}" >> "$GITHUB_ENV"
+              echo "Catálogo baixado e validado em ${CATALOG_DEST}"
+            else
+              echo "Resposta da API inválida: não encontrei .[].metadata.name" >&2
+              exit 1
+            fi
+          else
+            echo "Falha ao chamar a API do catálogo." >&2
+            exit 1
+          fi
+
+      # 2) Fallback: se a API falhar, copia fake_catalog_response.json -> catalog_response.json
+      - name: Fallback to local fake catalog (Bash)
+        if: steps.fetch_catalog.outcome == 'failure'
+        shell: bash
+        env:
+          FAKE_CATALOG_PATH: "fake_catalog_response.json"
+          CATALOG_DEST: "catalog_response.json"
+        run: |
+          set -euo pipefail
+          cand="${FAKE_CATALOG_PATH}"
+
+          if [[ ! -f "${cand}" ]]; then
+            # tenta localizar no repositório
+            cand="$(git ls-files | grep -m1 -E '(^|/)(fake_catalog_response\.json)$' || true)"
+          fi
+          if [[ -z "${cand}" || ! -f "${cand}" ]]; then
+            cand="$(find . -type f -name 'fake_catalog_response.json' | head -n1 || true)"
+          fi
+          if [[ -z "${cand}" || ! -f "${cand}" ]]; then
+            echo "ERRO: fake_catalog_response.json não encontrado no repositório." >&2
+            exit 1
+          fi
+
+          jq -e '.[].metadata.name' "${cand}" >/dev/null
+          cp -f "${cand}" "${CATALOG_DEST}"
+          echo "CATALOG_FILE=${CATALOG_DEST}" >> "$GITHUB_ENV"
+          echo "Usando catálogo de fallback: ${cand} -> ${CATALOG_DEST}"
+
+      - name: Generate Catalog YAML (Source Repo)
+        env:
+          DEBUG_MATCH: "0"   # coloque "1" para logs de MATCH/MISS
+        run: |
+          ./.github/workflows/scripts/script.sh
+
+      - name: Checkout Target Repository
+        uses: actions/checkout@v4
+        with:
+          repository: rafaveloso23/repo-destino-rvs-modules
+          token: ${{ secrets.PAT_GITHUB_TOKEN }}
+          path: target-repo
+
+      - name: Copy Catalog File to Target Repository
+        run: |
+          DEST_DIR="target-repo/biblioteca/${COSTCENTER}"
+          mkdir -p "$DEST_DIR"
+          cp "biblioteca/${COSTCENTER}/${OUTPUT_FILE}" "$DEST_DIR/${OUTPUT_FILE}"
+
+      - name: Check for Changes in Target Repo
+        id: diffcheck
+        working-directory: target-repo
+        run: |
+          git add .
+          if git diff --cached --quiet --exit-code .; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Open PR in Target Repo
+        if: steps.diffcheck.outputs.no_changes == 'false'
+        working-directory: target-repo
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="feature/${COSTCENTER}-${MODULE_NAME}-update-${RANDOM}"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: atualizando recurso ${MODULE_NAME} do centro de custo ${COSTCENTER}" || echo "No changes to commit"
+          git push origin "$BRANCH_NAME"
+
+          gh pr create \
+            --repo rafaveloso23/repo-destino-rvs-modules \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "Update ${MODULE_NAME} Catalog" \
+            --body "Automated Catalog update for ${MODULE_NAME}"
+
+      - name: Show Terraform Variables in Summary (No Changes)
+        if: steps.diffcheck.outputs.no_changes == 'true'
+        run: |
+          echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.inputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.outputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "## 🔗 Depends On" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.depends_on }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY

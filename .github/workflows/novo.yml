@@ -1,0 +1,111 @@
+# name: Generate Catalog YAML and Open PR if Changed
+# concurrency:
+#   group: catalog-${{ github.repository }}
+#   cancel-in-progress: false
+
+# on:
+#   pull_request:
+#     paths:
+#       - '**/*.tf'
+#       - 'resource.yml'
+#       - '.github/workflows/scripts/generate_catalog.sh'
+
+
+# jobs:
+#   publish-catalog:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Source Repository
+#         uses: actions/checkout@v4
+
+#       - name: Setup Git User
+#         run: |
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+#       # (opcional) se o script já está versionado, remova este passo
+#       - name: Ensure generator script exists
+#         run: |
+#           if [[ ! -f ".github/workflows/scripts/generate_catalog.sh" ]]; then
+#             echo "ERRO: generate_catalog.sh não encontrado no repo." >&2
+#             exit 1
+#           fi
+#           chmod +x .github/workflows/scripts/generate_catalog.sh
+
+#       - name: Write fake catalog JSON (test only)
+#         run: |
+#           cat > fake_catalog_response.json <<'JSON'
+#           [
+#             { "metadata": { "name": "terraform-azurerm-srv-key-vault" } },
+#             { "metadata": { "name": "terraform-azurerm-tdr-key-vault-access-policy" } },
+#             { "metadata": { "name": "terraform-azurerm-tdr-redis-cache" } },
+#             { "metadata": { "name": "terraform-azurerm-rvs-resource-group" } }
+#           ]
+#           JSON
+
+#       - name: Generate Catalog YAML (Source Repo)
+#         env:
+#           # Deixe em branco para usar os defaults do script a partir de $GITHUB_REPOSITORY
+#           # ou defina manualmente se precisar forçar:
+#           # REPO_NAME: terraform-azurerm-rvs-resource-group
+#           # COSTCENTER: rvs
+#           # MODULE_NAME: resource-group
+#           OUTPUT_PREFIX_FILTER: "^(resource_group_name|resource_group_location)$"
+#           DEBUG_MATCH: "0"
+#         run: |
+#           ./.github/workflows/scripts/generate_catalog.sh
+
+#       - name: Checkout Target Repository
+#         uses: actions/checkout@v4
+#         with:
+#           repository: rafaveloso23/repo-destino-rvs-modules
+#           token: ${{ secrets.PAT_GITHUB_TOKEN }}
+#           path: target-repo
+
+#       - name: Copy Catalog File to Target Repository
+#         run: |
+#           DEST_DIR="target-repo/biblioteca/${COSTCENTER}"
+#           mkdir -p "$DEST_DIR"
+#           cp "biblioteca/${COSTCENTER}/${OUTPUT_FILE}" "$DEST_DIR/${OUTPUT_FILE}"
+
+#       - name: Check for Changes in Target Repo
+#         id: diffcheck
+#         working-directory: target-repo
+#         run: |
+#           git add .
+#           if git diff --cached --quiet --exit-code .; then
+#             echo "no_changes=true" >> $GITHUB_OUTPUT
+#           else
+#             echo "no_changes=false" >> $GITHUB_OUTPUT
+#           fi
+
+#       - name: Commit and Open PR in Target Repo
+#         if: steps.diffcheck.outputs.no_changes == 'false'
+#         working-directory: target-repo
+#         env:
+#           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+#         run: |
+#           BRANCH_NAME="feature/${COSTCENTER}-${MODULE_NAME}-update-${RANDOM}"
+#           git checkout -b "$BRANCH_NAME"
+#           git add .
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git commit -m "fix: atualizando recurso ${MODULE_NAME} do centro de custo ${COSTCENTER}" || echo "No changes to commit"
+#           git push origin "$BRANCH_NAME"
+
+#           gh pr create \
+#             --repo rafaveloso23/repo-destino-rvs-modules \
+#             --base main \
+#             --head "$BRANCH_NAME" \
+#             --title "Update ${MODULE_NAME} Catalog" \
+#             --body "Automated Catalog update for ${MODULE_NAME}"
+
+#       - name: Show Terraform Variables in Summary (No Changes)
+#         if: steps.diffcheck.outputs.no_changes == 'true'
+#         run: |
+#           echo "## 📋 Terraform Inputs" >> $GITHUB_STEP_SUMMARY
+#           echo "${{ env.inputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+#           echo "## 📋 Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+#           echo "${{ env.outputs }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+#           echo "## 🔗 Depends On" >> $GITHUB_STEP_SUMMARY
+#           echo "${{ env.depends_on }}" | tr ' ' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${MODULE_NAME}
+  description: Módulo no-code para criação de "${MODULE_NAME}"
+spec:
+  type: terraform-module
+  name: ${MODULE_NAME}
+  owner: squad-automacao
+  lifecycle: production
+  definition:
+    input:
+${INPUTS_PLACEHOLDER}
+    output:
+${OUTPUTS_PLACEHOLDER}
+    dependsOn:
+${DEPENDS_ON_PLACEHOLDER}
