@@ -86,12 +86,27 @@ mapfile -t resource_names < <(jq -r '.[].metadata.name' <<<"$response" | LC_ALL=
 declare -a depends_on=()
 declare -A seen_dep=()
 
+# === Identidades "self" para evitar autodependência ===
+repo_norm="$(normalize "$REPO_NAME")"
+self_full="terraform-azurerm-${COSTCENTER}-${MODULE_NAME}"
+self_full_norm="$(normalize "$self_full")"
+
 for var in "${inputs[@]:-}"; do
   core="$(var_core "$var")"
   [[ -z "$core" ]] && continue
+
   for resource in "${resource_names[@]:-}"; do
-    [[ "$resource" == "$REPO_NAME" ]] && continue
     res_norm="$(normalize "$resource")"
+
+    # Skip se o recurso for o próprio módulo (em várias formas)
+    if [[ "$resource" == "$REPO_NAME" ]] \
+       || [[ "$resource" == "$self_full" ]] \
+       || [[ "$res_norm" == "$repo_norm" ]] \
+       || [[ "$res_norm" == "$self_full_norm" ]]; then
+      (( DEBUG_MATCH )) && echo "[SKIP SELF] resource='${resource}' repo='${REPO_NAME}' self='${self_full}' res_norm='${res_norm}' repo_norm='${repo_norm}' self_norm='${self_full_norm}'"
+      continue
+    fi
+
     if ends_with "$res_norm" "$core"; then
       if [[ -z "${seen_dep[$resource]:-}" ]]; then
         depends_on+=("$resource")
