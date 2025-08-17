@@ -8,7 +8,7 @@ on:
     paths:
       - '**/*.tf'
       - 'resource.yml'
-      - '.github/workflows/scripts/generate_catalog.sh'
+      - '.github/workflows/scripts/script.sh'
 
 jobs:
   publish-catalog:
@@ -24,11 +24,11 @@ jobs:
 
       - name: Ensure generator script exists
         run: |
-          if [[ ! -f ".github/workflows/scripts/generate_catalog.sh" ]]; then
-            echo "ERRO: generate_catalog.sh não encontrado no repo." >&2
+          if [[ ! -f ".github/workflows/scripts/script.sh" ]]; then
+            echo "ERRO: script.sh não encontrado no repo." >&2
             exit 1
           fi
-          chmod +x .github/workflows/scripts/generate_catalog.sh
+          chmod +x .github/workflows/scripts/script.sh
 
       # 1) Tenta buscar catálogo via API (Bash) e grava em catalog_response.json
       - name: Fetch catalog from API (Bash)
@@ -99,7 +99,7 @@ jobs:
         env:
           DEBUG_MATCH: "0"   # coloque "1" para logs de MATCH/MISS
         run: |
-          ./.github/workflows/scripts/generate_catalog.sh
+          ./.github/workflows/scripts/script.sh
 
       - name: Checkout Target Repository
         uses: actions/checkout@v4
