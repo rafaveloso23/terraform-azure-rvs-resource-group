@@ -1,7 +1,7 @@
  [
   {
     "metadata": {
-      "name": "terraform-azurerm-srv-key-vault"
+      "name": "terraform-azurerm-srv-keyvault"
     }
   },
   {
@@ -21,7 +21,7 @@
   },
   {
     "metadata": {
-      "name": "terraform-azurerm-tdr-key-vault-access-policy"
+      "name": "terraform-azurerm-tdr-keyvault-access-policy"
     }
   },
   {

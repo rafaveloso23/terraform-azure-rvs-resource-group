@@ -59,8 +59,17 @@ mapfile -t outputs < <(dedup_sort "${outputs[@]:-}")
 normalize(){
   local s="$1"
   s="${s,,}"
+  # remove prefixos
   s="$(sed -E 's/(^|-)terraform-?//; s/(^|-)azurerm-?//; s/(^|-)'"$COSTCENTER"'-?//g' <<<"$s")"
+
+  # --- Decomposição específica (apenas Key Vault por enquanto) ---
+  # Ex.: 'srv-keyvault' -> 'srv-key-vault'
+  s="$(sed -E 's/keyvault/key-vault/g' <<<"$s")"
+  # ---------------------------------------------------------------
+
+  # remove sufixos específicos no fim
   s="$(sed -E 's/(_|-)object_id$//; s/(_|-)name$//; s/(_|-)id$//' <<<"$s")"
+  # unifica separadores e limpa
   s="$(sed -E 's/[ _]+/-/g' <<<"$s")"
   s="$(sed -E 's/-+/-/g; s/^-|-$//g' <<<"$s")"
   echo "$s"
