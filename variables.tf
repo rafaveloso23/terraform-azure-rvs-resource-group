@@ -41,3 +41,8 @@ variable "azurerm_redis_cache_name" {
   type    = string
   default = "myredis"
 }
+
+variable "azurerm_database_name" {
+  type    = string
+  default = "mydatabase"
+}
