@@ -43,6 +43,7 @@ variable "azurerm_redis_cache_name" {
 }
 
 variable "azurerm_database_name" {
+  description = "teste"
   type    = string
   default = "mydatabase"
 }

@@ -10,7 +10,7 @@ OUTPUT_FILE="${OUTPUT_FILE:-${REPO_NAME}.yml}"
 TEMPLATE_FILE="${TEMPLATE_FILE:-resource.yml}"
 MODULE_DIR="${MODULE_DIR:-.}"
 
-# Este arquivo DEVE ser gravado previamente pelo step de workflow (PowerShell)
+# Este arquivo DEVE ser gravado previamente pelo step de workflow
 CATALOG_FILE="${CATALOG_FILE:-catalog_response.json}"
 
 # Debug do matching (1 = ligado)
