@@ -8,10 +8,6 @@ variable "location" {
   default = "East US"
 }
 
-variable "client_secret" {
-  type    = string
-}
-
 variable "tags" {
   type = map(string)
   default = {
