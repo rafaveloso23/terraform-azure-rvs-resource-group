@@ -1,5 +1,5 @@
 resource "azurerm_resource_group" "rg" {
-  name     = "rg-veloso"
+  name     = "rg-teste"
   location = var.location
   tags     = var.tags
-}
+}##

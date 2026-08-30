@@ -19,46 +19,185 @@ jobs:
 
   api_request:
     runs-on: ubuntu-latest
+    outputs:
+      workspace_id: ${{ steps.make_api_request.outputs.workspace_id }}
     needs: get-repo-name
     steps:
       - name: Make API Request
         env:
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          TF_API_TEAM_TOKEN: ${{ secrets.TF_API_TEAM_TOKEN }}
           OAUTH_TOKEN: ${{ secrets.OAUTH_TOKEN }}
           WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
         run: |
-          curl -X POST "https://app.terraform.io/api/v2/organizations/veloso/workspaces" \
+          GET_RESPONSE=$(curl -s -o get_response.json -w "%{http_code}" -X GET "https://app.terraform.io/api/v2/organizations/veloso/workspaces/$WORKSPACE_NAME" \
             -H "Authorization: Bearer $TF_API_TOKEN" \
             -H "Accept: application/json" \
-            -H "Content-Type: application/vnd.api+json" \
-            -d '{
-              "data": {
-                "type": "workspaces",
-                "attributes": {
-                  "name": "'"$WORKSPACE_NAME"'",  
-                  "terraform_version": "1.6.0",
-                  "queue-all-runs": true,
-                  "auto-apply-run-trigger": true,
-                  "auto-apply": true,
-                  "trigger-patterns": ["./*.tf"],
-                  "file-triggers-enabled": true,                 
-                  "working-directory": ".",
-                  "speculative-enabled": true,
-                  "structured-run-output-enabled": false,
-                  "vcs-repo": {
-                    "identifier": "rafaveloso23/'"$WORKSPACE_NAME"'", 
-                    "oauth-token-id": "ot-wA35FqioPs6EfhUi",
-                    "tags-regex": "",
-                    "branch": "main"
-                  }
-                },
-                "relationships": {
-                    "project": {
-                        "data": {
-                            "type": "projects",
-                            "id": "prj-Q9eBYAsfU5yYxbBF"
-                        }
+            -H "Content-Type: application/vnd.api+json")
+
+          if [ "$GET_RESPONSE" -eq 200 ]; then
+            echo "Workspace already exists."
+            WORKSPACE_ID=$(jq -r '.data.id' get_response.json)
+          else
+            echo "Workspace does not exist. Creating it now..."
+
+            CREATE_RESPONSE=$(curl -s -X POST "https://app.terraform.io/api/v2/organizations/veloso/workspaces" \
+              -H "Authorization: Bearer $TF_API_TOKEN" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/vnd.api+json" \
+              -d '{
+                "data": {
+                  "type": "workspaces",
+                  "attributes": {
+                    "name": "'"$WORKSPACE_NAME"'",
+                    "terraform_version": "1.6.0",
+                    "queue-all-runs": false,
+                    "auto-apply-run-trigger": false,
+                    "auto-apply": false,
+                    "trigger-patterns": ["./*.tf"],
+                    "file-triggers-enabled": true,
+                    "working-directory": ".",
+                    "speculative-enabled": false,
+                    "structured-run-output-enabled": false,
+                    "vcs-repo": {
+                      "identifier": "rafaveloso23/'"$WORKSPACE_NAME"'",
+                      "oauth-token-id": "ot-wA35FqioPs6EfhUi",
+                      "tags-regex": "",
+                      "branch": "main"
                     }
+                  },
+                  "relationships": {
+                    "project": {
+                      "data": {
+                        "type": "projects",
+                        "id": "prj-Q9eBYAsfU5yYxbBF"
+                      }
+                    }
+                  }
                 }
+              }')
+
+            WORKSPACE_ID=$(echo "$CREATE_RESPONSE" | jq -r '.data.id')
+          fi
+
+          # Save the workspace_id to GitHub Actions environment
+          echo "workspace_id=$WORKSPACE_ID" >> "$GITHUB_ENV"
+
+
+      - name: Read the value
+        run: |
+          echo "Workspace ID: $workspace_id"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TEAM_TOKEN }}
+
+      - name: Inject Terraform Cloud Backend Configuration
+        env:
+          WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
+        run: |
+          cat <<EOF > backend.tf
+          terraform {
+            cloud {
+              organization = "veloso"
+              hostname     = "app.terraform.io"
+          
+              workspaces {
+                project = "modules"
+                name    = "$WORKSPACE_NAME"
               }
-            }'
+            }
+          }
+          EOF
+
+      - name: Initialize Terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan
+
+      - name: Get config version
+        env:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          TF_API_TEAM_TOKEN: ${{ secrets.TF_API_TEAM_TOKEN }}
+          OAUTH_TOKEN: ${{ secrets.OAUTH_TOKEN }}
+          WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
+        run: |
+            RESPONSE=$(curl -s -X GET "https://app.terraform.io/api/v2/workspaces/$workspace_id/configuration-versions" \
+            -H "Authorization: Bearer $TF_API_TOKEN" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/vnd.api+json")
+
+            CV_ID=$(echo "$RESPONSE" | jq -r '.data[0].id')
+            echo "cv_id=$CV_ID" >> "$GITHUB_ENV"
+
+      - name: Read the value
+        run: |
+          echo "CV ID: $cv_id"
+
+      - name: Create a config version
+        env:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          TF_API_TEAM_TOKEN: ${{ secrets.TF_API_TEAM_TOKEN }}
+          WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
+        run: |
+          curl -s -X GET "https://app.terraform.io/api/v2/configuration-versions/$cv_id/ingress-attributes" \
+            -H "Authorization: Bearer $TF_API_TEAM_TOKEN" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/vnd.api+json"
+            
+      # - name: Create a Run
+      #   env:
+      #     TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      #     TF_API_TEAM_TOKEN: ${{ secrets.TF_API_TEAM_TOKEN }}
+      #     WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
+      #   run: |
+      #     curl -s -X POST "https://app.terraform.io/api/v2/runs" \
+      #       -H "Authorization: Bearer $TF_API_TEAM_TOKEN" \
+      #       -H "Accept: application/json" \
+      #       -H "Content-Type: application/vnd.api+json" \
+      #       -d '{
+      #         "data": {
+      #         "attributes": {
+      #           "message": "Custom message for the run",
+      #           "plan-only": false
+      #         },
+      #         "type": "runs",
+      #         "relationships": {
+      #           "workspace": {
+      #           "data": {
+      #             "type": "workspaces",
+      #             "id": "'"$workspace_id"'"
+      #           }
+      #           },
+      #           "configuration-version": {
+      #           "data": {
+      #             "type": "configuration-versions",
+      #             "id": "'"$cv_id"'"
+      #           }
+      #           }
+      #         }
+      #         }
+      #       }'
+
+      # - name: Read the value
+      #   run: |
+      #     echo "Run ID: $run_id"
+      
+      # - name: Terraform Apply
+      #   env:
+      #     TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      #     TF_API_TEAM_TOKEN: ${{ secrets.TF_API_TEAM_TOKEN }}
+      #     OAUTH_TOKEN: ${{ secrets.OAUTH_TOKEN }}
+      #     WORKSPACE_NAME: ${{ needs.get-repo-name.outputs.sanitized_repo_name }}
+      #   run: |
+      #     curl -X POST "https://app.terraform.io/api/v2/runs/$run_id/actions/apply" \
+      #       -H "Authorization: Bearer $TF_API_TEAM_TOKEN" \
+      #       -H "Accept: application/json" \
+      #       -H "Content-Type: application/vnd.api+json"
+
+
